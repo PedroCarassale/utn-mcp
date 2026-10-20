@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "utn-mcp": {
+      "command": "node",
+      "args": ["dist/cli.js", "serve"]
+    }
+  }
+}

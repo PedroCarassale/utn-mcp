@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.log
+.env
+.env.*
+# Credenciales y caché local nunca van al repo
+.utn-mcp/
+docs/functions.json
+coverage/
+.DS_Store
+Thumbs.db

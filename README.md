@@ -82,7 +82,9 @@ Dentro de este repo ya está configurado en `.mcp.json`.
 | `campus_messages` / `campus_conversation` / `campus_notifications` / `campus_search_users` | Mensajería y notificaciones |
 | `campus_quizzes` | Cuestionarios, fechas, intentos y mejor nota |
 | `campus_scheduler` | Turnos de consulta (si la API los expone; si no, los links) |
-| `campus_submit_assignment` ⚠ | Entregar una tarea (archivos y/o texto) |
+| `campus_draft_add` / `campus_draft_show` / `campus_draft_remove` | Armar una entrega localmente: copiar archivos a un borrador por tarea, validados contra la configuración de la tarea |
+| `campus_draft_submit` ⚠ | Subir al campus una entrega armada con `campus_draft_add` |
+| `campus_submit_assignment` ⚠ | Entregar una tarea en un solo paso (archivos y/o texto) |
 | `campus_send_message` ⚠ | Enviar un mensaje |
 | `campus_forum_post` ⚠ | Responder o abrir una discusión en un foro |
 | `campus_mark_notifications_read` ⚠ | Marcar notificaciones como leídas |
@@ -95,7 +97,7 @@ Además del modo local por stdio, el servidor puede correr como servicio HTTP pa
 
 - **Transporte:** Streamable HTTP sin sesiones, en `/mcp`.
 - **Autenticación:** OAuth 2.1 con registro dinámico de clientes y PKCE. Al conectar, el usuario inicia sesión con su cuenta del campus en `/authorize`; el servidor pide un token a Moodle y lo entrega **cifrado** (AES-256-GCM) como access token. No hay base de datos: client_id, códigos y tokens son blobs sellados con `UTN_MCP_SECRET`. La contraseña no se guarda.
-- **Solo lectura:** no se registran `campus_login`, `campus_logout`, `campus_submit_assignment`, `campus_send_message`, `campus_forum_post` ni `campus_mark_notifications_read`.
+- **Solo lectura:** no se registran `campus_login`, `campus_logout`, `campus_submit_assignment`, `campus_send_message`, `campus_forum_post` ni `campus_mark_notifications_read`, ni las de borradores de entrega (`campus_draft_*`), que leen archivos del disco del usuario.
 - **Datos:** caché, apuntes e índice van a un directorio temporal por usuario (`UTN_MCP_DATA_DIR`, default `/tmp/utn-mcp`). En serverless se pierden cuando se recicla la instancia.
 
 Variables de entorno:
@@ -130,6 +132,7 @@ Todo vive en `~/.utn-mcp/` (configurable con `UTN_MCP_HOME`):
 - `cache/`: respuestas de la API con TTL corto
 - `files/`: apuntes descargados, por materia
 - `text/` e `index.json`: texto extraído e índice de búsqueda
+- `drafts/`: entregas en preparación, una carpeta por tarea con la copia de los archivos
 - `actions.log`: registro local de acciones (login, entregas, mensajes, indexados)
 
 ## Desarrollo

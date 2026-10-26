@@ -25,6 +25,7 @@ export function pathsFor(home: string) {
     text: join(home, "text"),
     index: join(home, "index.json"),
     snapshots: join(home, "snapshots"),
+    drafts: join(home, "drafts"),
     log: join(home, "actions.log"),
   };
 }

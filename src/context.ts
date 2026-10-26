@@ -5,6 +5,7 @@ import { getSiteInfo, getUserCourses } from "./moodle/api.js";
 import type { Course, SiteInfo } from "./moodle/types.js";
 import { JsonCache } from "./store/cache.js";
 import { TextIndex } from "./store/index.js";
+import { DraftStore } from "./store/drafts.js";
 import { PATHS, TTL, pathsFor, type Paths } from "./config.js";
 import { appendLog } from "./util/fs.js";
 
@@ -29,11 +30,12 @@ export interface AppContextOptions {
   home?: string;
 }
 
-/** Estado compartido entre tools: cliente autenticado, caché e índice. */
+/** Estado compartido entre tools: cliente autenticado, caché, índice y borradores de entregas. */
 export class AppContext {
   readonly paths: Paths;
   readonly cache: JsonCache;
   readonly index: TextIndex;
+  readonly drafts: DraftStore;
   private readonly fixedCreds: Credentials | null;
   private client: MoodleClient | null = null;
   private creds: Credentials | null = null;
@@ -43,6 +45,7 @@ export class AppContext {
     this.paths = opts.home ? pathsFor(opts.home) : PATHS;
     this.cache = new JsonCache(this.paths.cache);
     this.index = new TextIndex(this.paths.index, this.paths.text);
+    this.drafts = new DraftStore(this.paths.drafts);
     this.fixedCreds = opts.credentials ?? null;
   }
 

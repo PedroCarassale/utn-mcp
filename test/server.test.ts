@@ -84,3 +84,20 @@ describe("servidor MCP", () => {
     expect((r.content as any)[0].text).toMatch(/Falta usuario/);
   });
 });
+
+describe("onToolCall", () => {
+  it("avisa cada ejecución de tool con su nombre, también en modo de solo lectura", async () => {
+    const { createServer } = await import("../src/server.js");
+    const calls: string[] = [];
+    const server = createServer(undefined, { readOnly: true, onToolCall: async (name) => void calls.push(name) });
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    await server.connect(a);
+    const c = new Client({ name: "test", version: "0" });
+    await c.connect(b);
+
+    expect((await c.listTools()).tools.map((t) => t.name)).not.toContain("campus_send_message");
+    await c.callTool({ name: "campus_whoami", arguments: {} });
+    await c.callTool({ name: "campus_list_courses", arguments: {} });
+    expect(calls).toEqual(["campus_whoami", "campus_list_courses"]);
+  });
+});

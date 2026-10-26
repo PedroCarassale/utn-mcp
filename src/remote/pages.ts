@@ -42,7 +42,7 @@ const EMBLEM = `<svg viewBox="0 0 100 120" role="img" aria-label="UTN"><path d="
 const CHECK = `<svg viewBox="0 0 16 16" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3 3 7-7"/></svg>`;
 
 function layout(title: string, body: string): string {
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${STYLE}</style></head><body><main><div class="brand">${EMBLEM}<span><strong>UTN FRLP</strong>Campus virtual</span></div>${body}</main><footer>Universidad Tecnológica Nacional · Facultad Regional La Plata</footer><script defer src="https://cdn.vercel-insights.com/v1/script.js"></script></body></html>`;
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${STYLE}</style></head><body><main><div class="brand">${EMBLEM}<span><strong>UTN FRLP</strong>Campus virtual</span></div>${body}</main><footer>Universidad Tecnológica Nacional · Facultad Regional La Plata</footer><script>window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments);};</script><script defer src="/_vercel/insights/script.js"></script></body></html>`;
 }
 
 export function loginPage(opts: { action: string; pending: string; site: string; clientName?: string; username?: string; error?: string }): string {

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import express, { type Express, type Request, type Response } from "express";
 import { rateLimit } from "express-rate-limit";
+import { track } from "@vercel/analytics/server";
 import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -23,6 +24,8 @@ export interface RemoteConfig {
   site: string;
   /** Directorio para la caché de cada usuario. En Vercel solo /tmp es escribible. */
   dataDir: string;
+  /** Registra cada llamada a una tool como evento de Vercel Web Analytics. */
+  analytics?: boolean;
   /** Reemplaza el login contra Moodle (tests). */
   authenticate?: Authenticate;
 }
@@ -36,6 +39,7 @@ export function remoteConfigFromEnv(port = Number(process.env.PORT ?? 3000)): Re
     secret: process.env.UTN_MCP_SECRET ?? "",
     site: normalizeSite(process.env.UTN_MOODLE_SITE ?? DEFAULT_SITE),
     dataDir: process.env.UTN_MCP_DATA_DIR ?? join(tmpdir(), "utn-mcp"),
+    analytics: process.env.VERCEL === "1",
   };
 }
 
@@ -92,7 +96,8 @@ export function createRemoteApp(cfg: RemoteConfig): Express {
       },
       home: join(cfg.dataDir, userKey),
     });
-    const server = createServer(ctx, { readOnly: true });
+    const onToolCall = cfg.analytics ? (tool: string) => track("tool_call", { tool }, { headers: req.headers }) : undefined;
+    const server = createServer(ctx, { readOnly: true, onToolCall });
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     res.on("close", () => {
       void transport.close();

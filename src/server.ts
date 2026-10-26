@@ -44,15 +44,33 @@ export const LOCAL_TOOLS = new Set(["campus_draft_add", "campus_draft_show", "ca
 export interface ServerOptions {
   /** No registra las tools de WRITE_TOOLS ni LOCAL_TOOLS y usa las instrucciones del modo remoto. */
   readOnly?: boolean;
+  /** Se llama cada vez que un cliente ejecuta una tool (métricas). Se espera junto con la tool. */
+  onToolCall?: (name: string) => Promise<void>;
 }
 
-/** Devuelve una vista del servidor que ignora el registro de las tools indicadas. */
-function skippingTools(server: McpServer, skip: Set<string>): McpServer {
+/**
+ * Devuelve una vista del servidor que ignora el registro de las tools de `skip`
+ * y, si hay `onToolCall`, lo avisa en cada ejecución de las demás.
+ */
+function interceptTools(server: McpServer, skip: Set<string>, onToolCall?: (name: string) => Promise<void>): McpServer {
   return new Proxy(server, {
     get(target, prop, receiver) {
       if (prop === "registerTool") {
-        return (name: string, ...rest: unknown[]) =>
-          skip.has(name) ? undefined : (target.registerTool as (...a: unknown[]) => unknown)(name, ...rest);
+        return (name: string, ...rest: unknown[]) => {
+          if (skip.has(name)) return undefined;
+          const handler = rest.at(-1);
+          if (onToolCall && typeof handler === "function") {
+            rest[rest.length - 1] = async (...args: unknown[]) => {
+              const tracked = onToolCall(name);
+              try {
+                return await handler(...args);
+              } finally {
+                await tracked;
+              }
+            };
+          }
+          return (target.registerTool as (...a: unknown[]) => unknown)(name, ...rest);
+        };
       }
       const value = Reflect.get(target, prop, receiver);
       return typeof value === "function" ? value.bind(target) : value;
@@ -65,7 +83,8 @@ export function createServer(ctx: AppContext = new AppContext(), opts: ServerOpt
     { name: "utn-mcp", version: SERVER_VERSION },
     { instructions: opts.readOnly ? REMOTE_INSTRUCTIONS : INSTRUCTIONS },
   );
-  const target = opts.readOnly ? skippingTools(server, new Set([...WRITE_TOOLS, ...LOCAL_TOOLS])) : server;
+  const skip = opts.readOnly ? new Set([...WRITE_TOOLS, ...LOCAL_TOOLS]) : new Set<string>();
+  const target = skip.size > 0 || opts.onToolCall ? interceptTools(server, skip, opts.onToolCall) : server;
   registerAuthTools(target, ctx);
   registerCourseTools(target, ctx);
   registerFileTools(target, ctx);

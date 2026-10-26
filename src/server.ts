@@ -5,6 +5,7 @@ import { registerCourseTools } from "./tools/courses.js";
 import { registerFileTools } from "./tools/files.js";
 import { registerCalendarTools } from "./tools/calendar.js";
 import { registerAssignmentTools } from "./tools/assignments.js";
+import { registerDraftTools } from "./tools/drafts.js";
 import { registerGradeTools } from "./tools/grades.js";
 import { registerForumTools } from "./tools/forums.js";
 import { registerMessageTools } from "./tools/messages.js";
@@ -15,6 +16,7 @@ export const SERVER_VERSION = "0.1.0";
 export const INSTRUCTIONS = `Servidor MCP del campus virtual (Moodle) de la UTN Facultad Regional La Plata.
 Actúa con la cuenta del usuario. Flujo típico: campus_whoami → campus_list_courses → campus_course_contents / campus_upcoming / campus_assignments → campus_get_file para leer apuntes.
 Para buscar dentro del contenido de los apuntes: campus_index_course una vez por materia y después campus_search_content.
+Para entregar una tarea con archivos que indique el usuario: campus_draft_add (se puede llamar varias veces) → campus_draft_show → campus_draft_submit.
 Las tools marcadas como ACCIÓN DE ESCRITURA (entregar tarea, enviar mensaje, publicar en foro, marcar leídas) requieren confirm=true, y solo debés pasarlo después de mostrarle al usuario exactamente qué se va a hacer y recibir su confirmación explícita.
 Si una tool responde que no hay sesión o que el token venció, pedile al usuario que ejecute \`utn-mcp login\` en su terminal.
 Las fechas se muestran en hora de Argentina.`;
@@ -36,8 +38,11 @@ export const WRITE_TOOLS = new Set([
   "campus_mark_notifications_read",
 ]);
 
+/** Tools que trabajan con archivos del disco del usuario; no tienen sentido en el modo remoto. */
+export const LOCAL_TOOLS = new Set(["campus_draft_add", "campus_draft_show", "campus_draft_remove", "campus_draft_submit"]);
+
 export interface ServerOptions {
-  /** No registra las tools de WRITE_TOOLS y usa las instrucciones del modo remoto. */
+  /** No registra las tools de WRITE_TOOLS ni LOCAL_TOOLS y usa las instrucciones del modo remoto. */
   readOnly?: boolean;
 }
 
@@ -60,12 +65,13 @@ export function createServer(ctx: AppContext = new AppContext(), opts: ServerOpt
     { name: "utn-mcp", version: SERVER_VERSION },
     { instructions: opts.readOnly ? REMOTE_INSTRUCTIONS : INSTRUCTIONS },
   );
-  const target = opts.readOnly ? skippingTools(server, WRITE_TOOLS) : server;
+  const target = opts.readOnly ? skippingTools(server, new Set([...WRITE_TOOLS, ...LOCAL_TOOLS])) : server;
   registerAuthTools(target, ctx);
   registerCourseTools(target, ctx);
   registerFileTools(target, ctx);
   registerCalendarTools(target, ctx);
   registerAssignmentTools(target, ctx);
+  registerDraftTools(target, ctx);
   registerGradeTools(target, ctx);
   registerForumTools(target, ctx);
   registerMessageTools(target, ctx);

@@ -9,7 +9,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { createRemoteApp } from "../src/remote/app.js";
 import { Sealer } from "../src/remote/seal.js";
-import { WRITE_TOOLS } from "../src/server.js";
+import { LOCAL_TOOLS, WRITE_TOOLS } from "../src/server.js";
 
 const SECRET = "x".repeat(40);
 const REDIRECT = "http://localhost:9999/callback";
@@ -155,7 +155,7 @@ describe("modo remoto", () => {
     const names = (await client.listTools()).tools.map((t) => t.name);
     expect(names).toContain("campus_whoami");
     expect(names).toContain("campus_get_file");
-    for (const w of WRITE_TOOLS) expect(names).not.toContain(w);
+    for (const w of [...WRITE_TOOLS, ...LOCAL_TOOLS]) expect(names).not.toContain(w);
     await client.close();
   });
 });

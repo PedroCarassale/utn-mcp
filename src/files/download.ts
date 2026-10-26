@@ -20,9 +20,9 @@ export async function downloadToCache(
   client: MoodleClient,
   fileurl: string,
   filename: string,
-  opts: { courseId?: number | string; expectedSize?: number; mimetype?: string | null; maxBytes?: number; force?: boolean } = {},
+  opts: { courseId?: number | string; expectedSize?: number; mimetype?: string | null; maxBytes?: number; force?: boolean; baseDir?: string } = {},
 ): Promise<DownloadedFile> {
-  const dir = join(PATHS.files, String(opts.courseId ?? "otros"));
+  const dir = join(opts.baseDir ?? PATHS.files, String(opts.courseId ?? "otros"));
   await ensureDir(dir);
   const cleanUrl = fileurl.replace(/[?&]forcedownload=1/, "").replace(/[?&]token=[^&]*/, "");
   const path = join(dir, `${sha1(cleanUrl).slice(0, 10)}-${safeFilename(filename)}`);

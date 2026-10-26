@@ -19,19 +19,56 @@ Las tools marcadas como ACCIÓN DE ESCRITURA (entregar tarea, enviar mensaje, pu
 Si una tool responde que no hay sesión o que el token venció, pedile al usuario que ejecute \`utn-mcp login\` en su terminal.
 Las fechas se muestran en hora de Argentina.`;
 
-export function createServer(ctx: AppContext = new AppContext()): McpServer {
+export const REMOTE_INSTRUCTIONS = `Servidor MCP del campus virtual (Moodle) de la UTN Facultad Regional La Plata, versión pública de solo lectura.
+Actúa con la cuenta del usuario que conectó el servidor. Flujo típico: campus_whoami → campus_list_courses → campus_course_contents / campus_upcoming / campus_assignments → campus_get_file para leer apuntes.
+Para buscar dentro del contenido de los apuntes: campus_index_course una vez por materia y después campus_search_content. El índice es temporal: si la búsqueda no encuentra nada, volvé a indexar.
+Esta versión no puede entregar tareas, enviar mensajes ni publicar en foros.
+Si una tool responde que no hay sesión o que el token venció, pedile al usuario que desconecte y vuelva a conectar el servidor.
+Las fechas se muestran en hora de Argentina.`;
+
+/** Tools que modifican algo en el campus o en las credenciales locales. */
+export const WRITE_TOOLS = new Set([
+  "campus_login",
+  "campus_logout",
+  "campus_submit_assignment",
+  "campus_send_message",
+  "campus_forum_post",
+  "campus_mark_notifications_read",
+]);
+
+export interface ServerOptions {
+  /** No registra las tools de WRITE_TOOLS y usa las instrucciones del modo remoto. */
+  readOnly?: boolean;
+}
+
+/** Devuelve una vista del servidor que ignora el registro de las tools indicadas. */
+function skippingTools(server: McpServer, skip: Set<string>): McpServer {
+  return new Proxy(server, {
+    get(target, prop, receiver) {
+      if (prop === "registerTool") {
+        return (name: string, ...rest: unknown[]) =>
+          skip.has(name) ? undefined : (target.registerTool as (...a: unknown[]) => unknown)(name, ...rest);
+      }
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
+export function createServer(ctx: AppContext = new AppContext(), opts: ServerOptions = {}): McpServer {
   const server = new McpServer(
     { name: "utn-mcp", version: SERVER_VERSION },
-    { instructions: INSTRUCTIONS },
+    { instructions: opts.readOnly ? REMOTE_INSTRUCTIONS : INSTRUCTIONS },
   );
-  registerAuthTools(server, ctx);
-  registerCourseTools(server, ctx);
-  registerFileTools(server, ctx);
-  registerCalendarTools(server, ctx);
-  registerAssignmentTools(server, ctx);
-  registerGradeTools(server, ctx);
-  registerForumTools(server, ctx);
-  registerMessageTools(server, ctx);
-  registerQuizTools(server, ctx);
+  const target = opts.readOnly ? skippingTools(server, WRITE_TOOLS) : server;
+  registerAuthTools(target, ctx);
+  registerCourseTools(target, ctx);
+  registerFileTools(target, ctx);
+  registerCalendarTools(target, ctx);
+  registerAssignmentTools(target, ctx);
+  registerGradeTools(target, ctx);
+  registerForumTools(target, ctx);
+  registerMessageTools(target, ctx);
+  registerQuizTools(target, ctx);
   return server;
 }

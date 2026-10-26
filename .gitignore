@@ -9,3 +9,4 @@ docs/functions.json
 coverage/
 .DS_Store
 Thumbs.db
+.vercel/

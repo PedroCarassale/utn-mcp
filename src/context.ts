@@ -5,25 +5,46 @@ import { getSiteInfo, getUserCourses } from "./moodle/api.js";
 import type { Course, SiteInfo } from "./moodle/types.js";
 import { JsonCache } from "./store/cache.js";
 import { TextIndex } from "./store/index.js";
-import { PATHS, TTL } from "./config.js";
+import { PATHS, TTL, pathsFor, type Paths } from "./config.js";
 import { appendLog } from "./util/fs.js";
+
+/** Qué decirle al usuario cuando falta la sesión o el token venció. El modo remoto lo reemplaza. */
+let loginHint = "Pedile al usuario que ejecute `utn-mcp login` en una terminal (recomendado) o usá la tool campus_login.";
+
+export function setLoginHint(hint: string): void {
+  loginHint = hint;
+}
 
 export class NotLoggedInError extends Error {
   constructor() {
-    super(
-      "No hay sesión del campus. Pedile al usuario que ejecute `utn-mcp login` en una terminal (recomendado) o usá la tool campus_login.",
-    );
+    super(`No hay sesión del campus. ${loginHint}`);
     this.name = "NotLoggedInError";
   }
 }
 
+export interface AppContextOptions {
+  /** Credenciales fijas (modo remoto). Si faltan, se leen del entorno o del disco. */
+  credentials?: Credentials;
+  /** Directorio de datos (caché, archivos, índice). Default: ~/.utn-mcp */
+  home?: string;
+}
+
 /** Estado compartido entre tools: cliente autenticado, caché e índice. */
 export class AppContext {
-  readonly cache = new JsonCache();
-  readonly index = new TextIndex();
+  readonly paths: Paths;
+  readonly cache: JsonCache;
+  readonly index: TextIndex;
+  private readonly fixedCreds: Credentials | null;
   private client: MoodleClient | null = null;
   private creds: Credentials | null = null;
   private siteInfo: SiteInfo | null = null;
+
+  constructor(opts: AppContextOptions = {}) {
+    this.paths = opts.home ? pathsFor(opts.home) : PATHS;
+    this.cache = new JsonCache(this.paths.cache);
+    this.index = new TextIndex(this.paths.index, this.paths.text);
+    this.fixedCreds = opts.credentials ?? null;
+  }
 
   reset(): void {
     this.client = null;
@@ -32,7 +53,7 @@ export class AppContext {
   }
 
   async getCredentials(): Promise<Credentials> {
-    if (!this.creds) this.creds = await loadCredentials();
+    if (!this.creds) this.creds = this.fixedCreds ?? (await loadCredentials());
     if (!this.creds) throw new NotLoggedInError();
     return this.creds;
   }
@@ -75,7 +96,7 @@ export class AppContext {
   }
 
   async log(line: string): Promise<void> {
-    await appendLog(PATHS.log, line).catch(() => undefined);
+    await appendLog(this.paths.log, line).catch(() => undefined);
   }
 }
 
@@ -95,7 +116,7 @@ export function describeError(err: unknown): string {
   if (err instanceof AuthError) return `Error de autenticación: ${err.message}`;
   if (err instanceof MoodleError) {
     if (err.isInvalidToken) {
-      return "El token del campus es inválido o venció. Pedile al usuario que vuelva a ejecutar `utn-mcp login` (o campus_login).";
+      return `El token del campus es inválido o venció. ${loginHint}`;
     }
     const fn = err.wsfunction ? ` [${err.wsfunction}]` : "";
     const dbg = err.debuginfo ? ` (${err.debuginfo})` : "";

@@ -50,6 +50,7 @@ export async function ingestFile(ctx: AppContext, ref: Partial<FileRef> & { file
     mimetype: ref.file?.mimetype,
     force: opts.force,
     maxBytes: opts.maxBytes,
+    baseDir: ctx.paths.files,
   });
   const extracted = await extractText(dl.path, dl.mimetype);
   const id = ctx.index.entryIdFor(ref.fileurl);

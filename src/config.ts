@@ -13,16 +13,23 @@ export const TIMEZONE = process.env.UTN_MCP_TZ ?? "America/Argentina/Buenos_Aire
 /** Directorio raíz de datos locales (token, caché, archivos). */
 export const HOME_DIR = process.env.UTN_MCP_HOME ?? join(homedir(), ".utn-mcp");
 
-export const PATHS = {
-  home: HOME_DIR,
-  credentials: join(HOME_DIR, "credentials.json"),
-  cache: join(HOME_DIR, "cache"),
-  files: join(HOME_DIR, "files"),
-  text: join(HOME_DIR, "text"),
-  index: join(HOME_DIR, "index.json"),
-  snapshots: join(HOME_DIR, "snapshots"),
-  log: join(HOME_DIR, "actions.log"),
-};
+export type Paths = ReturnType<typeof pathsFor>;
+
+/** Rutas de datos bajo un directorio raíz. En modo remoto hay uno por usuario. */
+export function pathsFor(home: string) {
+  return {
+    home,
+    credentials: join(home, "credentials.json"),
+    cache: join(home, "cache"),
+    files: join(home, "files"),
+    text: join(home, "text"),
+    index: join(home, "index.json"),
+    snapshots: join(home, "snapshots"),
+    log: join(home, "actions.log"),
+  };
+}
+
+export const PATHS = pathsFor(HOME_DIR);
 
 /** Límite por defecto de tamaño de archivo a descargar (25 MB). */
 export const MAX_DOWNLOAD_BYTES = Number(process.env.UTN_MCP_MAX_DOWNLOAD ?? 25 * 1024 * 1024);

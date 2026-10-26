@@ -20,6 +20,7 @@ Uso:
   utn-mcp discover [--out docs/functions.json]                  Lista funciones de la API disponibles y qué tools funcionan
   utn-mcp clear-cache                                           Borra la caché de respuestas
   utn-mcp serve                                                 Arranca el servidor MCP por stdio (default)
+  utn-mcp serve-http [--port 3000]                              Modo remoto: HTTP + OAuth, solo lectura (requiere UTN_MCP_SECRET)
 
 Datos locales en: ${PATHS.home}
 `;
@@ -187,6 +188,10 @@ async function main(): Promise<void> {
       }
       case "serve":
         return await serve();
+      case "serve-http": {
+        const { serveHttp } = await import("./remote/app.js");
+        return await serveHttp(Number(arg("--port") ?? process.env.PORT ?? 3000));
+      }
       case "help":
       case "--help":
       case "-h":

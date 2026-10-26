@@ -89,6 +89,39 @@ Dentro de este repo ya está configurado en `.mcp.json`.
 
 ⚠ Las acciones de escritura requieren `confirm: true`. Sin él devuelven una vista previa y no ejecutan nada; el agente debe mostrársela al usuario y pedir confirmación.
 
+## Modo remoto (público, solo lectura)
+
+Además del modo local por stdio, el servidor puede correr como servicio HTTP para que cualquiera lo agregue como conector remoto (claude.ai, Claude Code, Cursor) sin instalar nada.
+
+- **Transporte:** Streamable HTTP sin sesiones, en `/mcp`.
+- **Autenticación:** OAuth 2.1 con registro dinámico de clientes y PKCE. Al conectar, el usuario inicia sesión con su cuenta del campus en `/authorize`; el servidor pide un token a Moodle y lo entrega **cifrado** (AES-256-GCM) como access token. No hay base de datos: client_id, códigos y tokens son blobs sellados con `UTN_MCP_SECRET`. La contraseña no se guarda.
+- **Solo lectura:** no se registran `campus_login`, `campus_logout`, `campus_submit_assignment`, `campus_send_message`, `campus_forum_post` ni `campus_mark_notifications_read`.
+- **Datos:** caché, apuntes e índice van a un directorio temporal por usuario (`UTN_MCP_DATA_DIR`, default `/tmp/utn-mcp`). En serverless se pierden cuando se recicla la instancia.
+
+Variables de entorno:
+
+| Variable | Obligatoria | Qué es |
+|---|---|---|
+| `UTN_MCP_SECRET` | sí | Clave para sellar tokens, ≥ 32 caracteres (`openssl rand -base64 48`). Cambiarla cierra todas las sesiones. |
+| `PUBLIC_URL` | no | URL pública (issuer OAuth). En Vercel se toma de `VERCEL_PROJECT_PRODUCTION_URL`. |
+| `UTN_MOODLE_SITE` | no | Campus a usar. Default `https://frlp.cvg.utn.edu.ar` |
+| `UTN_MCP_DATA_DIR` | no | Directorio de caché por usuario |
+
+Probarlo local:
+
+```bash
+UTN_MCP_SECRET=$(openssl rand -base64 48) node dist/cli.js serve-http --port 3000
+claude mcp add --transport http utn-remoto http://localhost:3000/mcp
+```
+
+### Deploy en Vercel
+
+1. Importar el repo en Vercel (sin framework; `vercel.json` ya define build, rewrites y la función `api/index.js`).
+2. Cargar `UTN_MCP_SECRET` en *Settings → Environment Variables*.
+3. Deployar. La URL del conector es `https://<proyecto>.vercel.app/mcp`.
+
+Límites a tener en cuenta: la función corre como máximo 60 s y los apuntes muy grandes (más de ~10 MB) pueden no llegar a procesarse.
+
 ## Datos locales
 
 Todo vive en `~/.utn-mcp/` (configurable con `UTN_MCP_HOME`):
@@ -120,15 +153,20 @@ src/
   store/cache.ts       caché JSON con TTL
   store/index.ts       índice full-text local
   tools/*.ts           una familia de tools por archivo
+  remote/app.ts        modo remoto: Express, OAuth y /mcp sin sesiones
+  remote/oauth.ts      proveedor OAuth sin estado (login con la cuenta del campus)
+  remote/seal.ts       cifrado de tokens con UTN_MCP_SECRET
   server.ts            registro de tools e instrucciones del servidor
-  cli.ts               login, whoami, discover, serve
+  cli.ts               login, whoami, discover, serve, serve-http
+api/index.js           entrada de Vercel
 ```
 
 Ver `PLAN.md` para el plan completo y las fases siguientes.
 
 ## Seguridad
 
-- Un usuario por instancia; el servidor actúa en nombre del alumno, no es un bot masivo.
+- En modo local, un usuario por instancia; el servidor actúa en nombre del alumno, no es un bot masivo.
+- En modo remoto cada pedido usa el token del usuario que lo hace, con caché separada por usuario, y solo hay tools de lectura.
 - El token se guarda localmente con permisos restrictivos y nunca se loguea.
 - Rate limit suave (300 ms entre llamadas) y caché para no cargar el servidor de la facultad.
 - Toda acción que modifica el campus pide confirmación y queda registrada en `actions.log`.

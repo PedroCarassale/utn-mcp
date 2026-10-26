@@ -126,11 +126,24 @@ export class MoodleClient {
     }
   }
 
+  /** True si la URL apunta al mismo origen (esquema, host y puerto) que el campus. */
+  isSiteUrl(url: string): boolean {
+    try {
+      return new URL(url).origin === new URL(this.site).origin;
+    } catch {
+      return false;
+    }
+  }
+
   /** Descarga un archivo de Moodle (pluginfile) usando el token. */
   async download(
     fileurl: string,
     maxBytes: number = MAX_DOWNLOAD_BYTES,
   ): Promise<{ bytes: Uint8Array; contentType: string | null; finalUrl: string }> {
+    // El token va en la URL: nunca mandarlo a otro servidor que no sea el campus.
+    if (!this.isSiteUrl(fileurl)) {
+      throw new MoodleError(`Solo se pueden descargar archivos de ${this.site}.`, "foreignurl");
+    }
     await this.throttle();
     const url = tokenizeFileUrl(fileurl, this.token);
     const res = await this.fetchImpl(url, { method: "GET", redirect: "follow" });

@@ -113,4 +113,28 @@ describe("MoodleClient.download", () => {
     const err = await client.download("https://x.edu/pluginfile.php/1/a.pdf", 50).catch((e) => e);
     expect(err.errorcode).toBe("toolarge");
   });
+
+  it("no manda el token a URLs fuera del campus", async () => {
+    const requested: string[] = [];
+    const client = new MoodleClient("https://x.edu", "tok", {
+      minIntervalMs: 0,
+      fetchImpl: mockFetch((url) => {
+        requested.push(url);
+        return { body: "pdf", headers: { "content-type": "application/pdf" } };
+      }),
+    });
+    for (const url of [
+      "https://atacante.com/pluginfile.php/1/a.pdf",
+      "https://x.edu.atacante.com/pluginfile.php/1/a.pdf",
+      "https://x.edu@atacante.com/pluginfile.php/1/a.pdf",
+      "http://x.edu/pluginfile.php/1/a.pdf",
+      "https://x.edu:8443/pluginfile.php/1/a.pdf",
+      "no es una url",
+    ]) {
+      const err = await client.download(url).catch((e) => e);
+      expect(err).toBeInstanceOf(MoodleError);
+      expect(err.errorcode).toBe("foreignurl");
+    }
+    expect(requested).toEqual([]);
+  });
 });

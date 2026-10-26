@@ -111,6 +111,10 @@ export function registerFileTools(server: McpServer, ctx: AppContext): void {
         }
         ref = fileurl ? files.find((r) => r.file.fileurl === fileurl) ?? null : files[0];
       } else if (fileurl) {
+        const client = await ctx.getClient();
+        if (!client.isSiteUrl(fileurl)) {
+          return fail(`Solo se pueden leer archivos del campus (${client.site}). ${fileurl} es de otro sitio: no lo descargo.`);
+        }
         ref = await findFileByUrl(ctx, fileurl, courseId);
       } else {
         return fail("Indicá `fileurl` o `cmid`.");

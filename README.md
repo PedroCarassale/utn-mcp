@@ -117,14 +117,6 @@ UTN_MCP_SECRET=$(openssl rand -base64 48) node dist/cli.js serve-http --port 300
 claude mcp add --transport http utn-remoto http://localhost:3000/mcp
 ```
 
-### Deploy en Vercel
-
-1. Importar el repo en Vercel (sin framework; `vercel.json` ya define build, rewrites y la función `api/index.js`).
-2. Cargar `UTN_MCP_SECRET` en *Settings → Environment Variables*.
-3. Deployar. La URL del conector es `https://<proyecto>.vercel.app/mcp`.
-
-Límites a tener en cuenta: la función corre como máximo 60 s y los apuntes muy grandes (más de ~10 MB) pueden no llegar a procesarse.
-
 ## Datos locales
 
 Todo vive en `~/.utn-mcp/` (configurable con `UTN_MCP_HOME`):

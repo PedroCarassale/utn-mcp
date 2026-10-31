@@ -8,7 +8,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 
 const PREFIX = "u1.";
 
-export type SealKind = "client" | "pending" | "code" | "access" | "refresh";
+export type SealKind = "client" | "pending" | "code" | "access" | "refresh" | "download";
 
 interface Envelope<T> {
   k: SealKind;

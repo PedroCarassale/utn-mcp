@@ -135,11 +135,11 @@ export class MoodleClient {
     }
   }
 
-  /** Descarga un archivo de Moodle (pluginfile) usando el token. */
-  async download(
-    fileurl: string,
-    maxBytes: number = MAX_DOWNLOAD_BYTES,
-  ): Promise<{ bytes: Uint8Array; contentType: string | null; finalUrl: string }> {
+  /**
+   * Pide un archivo de Moodle (pluginfile) con el token y devuelve la respuesta sin leer el cuerpo,
+   * salvo que sea la pantalla de login. Ya verificó estado HTTP y tamaño declarado.
+   */
+  async fetchFile(fileurl: string, maxBytes: number = MAX_DOWNLOAD_BYTES): Promise<{ res: Response; contentType: string | null; html?: string }> {
     // El token va en la URL: nunca mandarlo a otro servidor que no sea el campus.
     if (!this.isSiteUrl(fileurl)) {
       throw new MoodleError(`Solo se pueden descargar archivos de ${this.site}.`, "foreignurl");
@@ -159,16 +159,27 @@ export class MoodleClient {
       );
     }
     if (contentType && /text\/html/i.test(contentType)) {
-      const sample = await res.text();
-      if (/login\/index\.php|loginform|invalidtoken/i.test(sample)) {
+      const html = await res.text();
+      if (/login\/index\.php|loginform|invalidtoken/i.test(html)) {
         throw new MoodleError("Moodle devolvió la pantalla de login al descargar: el token puede estar vencido.", "invalidtoken");
       }
-      return { bytes: new TextEncoder().encode(sample), contentType, finalUrl: res.url || url };
+      return { res, contentType, html };
     }
+    return { res, contentType };
+  }
+
+  /** Descarga un archivo de Moodle (pluginfile) usando el token. */
+  async download(
+    fileurl: string,
+    maxBytes: number = MAX_DOWNLOAD_BYTES,
+  ): Promise<{ bytes: Uint8Array; contentType: string | null; finalUrl: string }> {
+    const { res, contentType, html } = await this.fetchFile(fileurl, maxBytes);
+    const finalUrl = res.url || fileurl;
+    if (html !== undefined) return { bytes: new TextEncoder().encode(html), contentType, finalUrl };
     const buf = new Uint8Array(await res.arrayBuffer());
     if (buf.byteLength > maxBytes) {
       throw new MoodleError(`El archivo supera el límite de ${maxBytes} bytes.`, "toolarge");
     }
-    return { bytes: buf, contentType, finalUrl: res.url || url };
+    return { bytes: buf, contentType, finalUrl };
   }
 }

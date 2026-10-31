@@ -99,6 +99,7 @@ Además del modo local por stdio, el servidor puede correr como servicio HTTP pa
 - **Autenticación:** OAuth 2.1 con registro dinámico de clientes y PKCE. Al conectar, el usuario inicia sesión con su cuenta del campus en `/authorize`; el servidor pide un token a Moodle y lo entrega **cifrado** (AES-256-GCM) como access token. No hay base de datos: client_id, códigos y tokens son blobs sellados con `UTN_MCP_SECRET`. La contraseña no se guarda.
 - **Solo lectura:** no se registran `campus_login`, `campus_logout`, `campus_submit_assignment`, `campus_send_message`, `campus_forum_post` ni `campus_mark_notifications_read`, ni las de borradores de entrega (`campus_draft_*`), que leen archivos del disco del usuario.
 - **Datos:** caché, apuntes e índice van a un directorio temporal por usuario (`UTN_MCP_DATA_DIR`, default `/tmp/utn-mcp`). En serverless se pierden cuando se recicla la instancia.
+- **Descargas:** como los archivos quedan en el servidor y no en la PC del usuario, `campus_get_file` devuelve un `downloadUrl` (`/files/<link sellado>/<nombre>`) que vence en una hora. Ese link baja del campus solo ese archivo y lo sirve como adjunto; el token de Moodle va cifrado adentro.
 
 Variables de entorno:
 

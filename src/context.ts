@@ -28,6 +28,11 @@ export interface AppContextOptions {
   credentials?: Credentials;
   /** Directorio de datos (caché, archivos, índice). Default: ~/.utn-mcp */
   home?: string;
+  /**
+   * Arma un link para que el usuario baje un archivo del campus a su computadora (modo remoto,
+   * donde la ruta local es del servidor y no le sirve).
+   */
+  downloadLink?: (fileurl: string, filename: string) => string;
 }
 
 /** Estado compartido entre tools: cliente autenticado, caché, índice y borradores de entregas. */
@@ -36,6 +41,7 @@ export class AppContext {
   readonly cache: JsonCache;
   readonly index: TextIndex;
   readonly drafts: DraftStore;
+  readonly downloadLink?: (fileurl: string, filename: string) => string;
   private readonly fixedCreds: Credentials | null;
   private client: MoodleClient | null = null;
   private creds: Credentials | null = null;
@@ -47,6 +53,7 @@ export class AppContext {
     this.index = new TextIndex(this.paths.index, this.paths.text);
     this.drafts = new DraftStore(this.paths.drafts);
     this.fixedCreds = opts.credentials ?? null;
+    this.downloadLink = opts.downloadLink;
   }
 
   reset(): void {

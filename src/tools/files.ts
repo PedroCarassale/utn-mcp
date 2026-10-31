@@ -83,7 +83,8 @@ export function registerFileTools(server: McpServer, ctx: AppContext): void {
       title: "Leer o descargar un apunte",
       description:
         "Descarga un archivo del campus (por `fileurl` de campus_course_contents, o por `cmid` si el módulo tiene un solo archivo) y devuelve su texto extraído (PDF, DOCX, PPTX, XLSX, TXT, HTML) " +
-        "más la ruta local. El texto se devuelve por partes: usá `offset` para seguir leyendo si `hasMore` es true. Con mode='path' solo descarga.",
+        "más la ruta local. El texto se devuelve por partes: usá `offset` para seguir leyendo si `hasMore` es true. Con mode='path' solo descarga. " +
+        "En el servidor remoto no hay ruta local: devuelve `downloadUrl`, el link para guardar el archivo en la computadora del usuario.",
       inputSchema: {
         fileurl: z.string().url().optional().describe("URL del archivo (campo fileurl)"),
         cmid: z.number().int().optional().describe("Alternativa: id del módulo. Si tiene varios archivos, los lista para elegir."),
@@ -133,7 +134,14 @@ export function registerFileTools(server: McpServer, ctx: AppContext): void {
         course: entry.courseName || undefined,
         section: entry.sectionName || undefined,
         module: entry.moduleName || undefined,
-        path: dl.path,
+        ...(ctx.downloadLink
+          ? {
+              downloadUrl: ctx.downloadLink(url, filename),
+              downloadNote:
+                "El archivo no está en la computadora del usuario. Para guardarlo, descargá downloadUrl (vence en 1 hora), " +
+                "p. ej. `curl -L -o <destino> <downloadUrl>`, o pasale el link al usuario para que lo abra en el navegador.",
+            }
+          : { path: dl.path }),
         bytes: dl.bytes,
         size: fmtBytes(dl.bytes),
         kind: extracted.kind,

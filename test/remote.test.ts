@@ -15,6 +15,7 @@ const SECRET = "x".repeat(40);
 const REDIRECT = "http://localhost:9999/callback";
 let base: string;
 let http: HttpServer;
+const fetched: string[] = [];
 
 async function freePort(): Promise<number> {
   const srv: Server = createNetServer();
@@ -68,6 +69,10 @@ beforeAll(async () => {
     authenticate: async (username, password, site) => {
       if (password !== "bien") throw new (await import("../src/auth/token.js")).AuthError("Datos de acceso inválidos");
       return { site, token: "moodle-token", userid: 42, username };
+    },
+    fetchImpl: async (input) => {
+      fetched.push(String(input));
+      return new Response("%PDF-1.4 contenido", { headers: { "Content-Type": "application/pdf" } });
     },
   });
   http = await new Promise((r) => {
@@ -157,5 +162,36 @@ describe("modo remoto", () => {
     expect(names).toContain("campus_get_file");
     for (const w of [...WRITE_TOOLS, ...LOCAL_TOOLS]) expect(names).not.toContain(w);
     await client.close();
+  });
+});
+
+describe("links de descarga", () => {
+  const sealer = new Sealer(SECRET);
+  const ticket = (fileurl: string, ttl = 60) =>
+    sealer.seal("download", { site: "https://campus.example", token: "moodle-token", fileurl, filename: "TP 3 - Sistemas lineales.pdf" }, ttl);
+
+  it("baja el archivo del campus con el token y lo sirve como adjunto", async () => {
+    fetched.length = 0;
+    const r = await fetch(`${base}/files/${ticket("https://campus.example/pluginfile.php/1/mod_resource/content/0/tp3.pdf")}/tp3.pdf`);
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toBe("application/pdf");
+    expect(r.headers.get("content-disposition")).toContain("filename*=UTF-8''TP%203%20-%20Sistemas%20lineales.pdf");
+    expect(await r.text()).toBe("%PDF-1.4 contenido");
+    expect(fetched).toEqual(["https://campus.example/webservice/pluginfile.php/1/mod_resource/content/0/tp3.pdf?token=moodle-token"]);
+  });
+
+  it("rechaza links vencidos, alterados o de otro tipo", async () => {
+    const url = "https://campus.example/pluginfile.php/1/a.pdf";
+    expect((await fetch(`${base}/files/${ticket(url, -1)}/a.pdf`)).status).toBe(410);
+    expect((await fetch(`${base}/files/u1.basura/a.pdf`)).status).toBe(410);
+    const access = sealer.seal("access", { site: "https://campus.example", token: "moodle-token", fileurl: url, filename: "a.pdf" }, 60);
+    expect((await fetch(`${base}/files/${access}/a.pdf`)).status).toBe(410);
+  });
+
+  it("no manda el token a otro sitio", async () => {
+    fetched.length = 0;
+    const r = await fetch(`${base}/files/${ticket("https://otro.example/pluginfile.php/1/a.pdf")}/a.pdf`);
+    expect(r.status).toBe(502);
+    expect(fetched).toEqual([]);
   });
 });

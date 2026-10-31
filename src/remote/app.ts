@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import express, { type Express, type Request, type Response } from "express";
 import { rateLimit } from "express-rate-limit";
 import { track } from "@vercel/analytics/server";
@@ -9,7 +12,9 @@ import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middlew
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { DEFAULT_SITE } from "../config.js";
 import { normalizeSite } from "../auth/token.js";
-import { AppContext, setLoginHint } from "../context.js";
+import { AppContext, describeError, setLoginHint } from "../context.js";
+import { MoodleClient } from "../moodle/client.js";
+import { safeFilename } from "../util/text.js";
 import { createServer } from "../server.js";
 import { Sealer } from "./seal.js";
 import { StatelessOAuthProvider, type Authenticate, type MoodleGrant } from "./oauth.js";
@@ -28,6 +33,25 @@ export interface RemoteConfig {
   analytics?: boolean;
   /** Reemplaza el login contra Moodle (tests). */
   authenticate?: Authenticate;
+  /** Reemplaza el fetch con el que se bajan los archivos de /files (tests). */
+  fetchImpl?: typeof fetch;
+}
+
+/** Cuánto dura un link de descarga de /files. */
+const DOWNLOAD_TTL = 60 * 60;
+
+/** Lo que va sellado en un link de descarga: alcanza para bajar ese archivo y ningún otro. */
+interface DownloadTicket {
+  site: string;
+  token: string;
+  fileurl: string;
+  filename: string;
+}
+
+/** Content-Disposition con nombre ASCII de respaldo y el original en UTF-8 (RFC 6266). */
+function attachment(filename: string): string {
+  const ascii = safeFilename(filename).replace(/[^ -~]/g, "_");
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
 /** Arma la configuración desde variables de entorno (Vercel o local). */
@@ -95,6 +119,10 @@ export function createRemoteApp(cfg: RemoteConfig): Express {
         source: "login",
       },
       home: join(cfg.dataDir, userKey),
+      downloadLink: (fileurl, filename) => {
+        const ticket = sealer.seal<DownloadTicket>("download", { site: grant.site, token: grant.token, fileurl, filename }, DOWNLOAD_TTL);
+        return `${cfg.publicUrl}/files/${ticket}/${encodeURIComponent(safeFilename(filename))}`;
+      },
     });
     const onToolCall = cfg.analytics ? (tool: string) => track("tool_call", { tool }, { headers: req.headers }) : undefined;
     const server = createServer(ctx, { readOnly: true, onToolCall });
@@ -113,6 +141,38 @@ export function createRemoteApp(cfg: RemoteConfig): Express {
   });
   app.get("/mcp", methodNotAllowed);
   app.delete("/mcp", methodNotAllowed);
+
+  // Links de campus_get_file: el servidor baja el archivo del campus y se lo pasa al usuario.
+  // El nombre al final de la ruta es solo para que curl -O y los navegadores lo guarden bien.
+  app.get(
+    "/files/:ticket/:name",
+    rateLimit({ windowMs: 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false }),
+    async (req, res) => {
+      const t = sealer.open<DownloadTicket>("download", String(req.params.ticket));
+      if (!t) {
+        res.status(410).type("text").send("El link de descarga venció o no es válido. Volvé a pedir el archivo con campus_get_file.");
+        return;
+      }
+      try {
+        const client = new MoodleClient(t.site, t.token, { fetchImpl: cfg.fetchImpl });
+        const { res: file, contentType, html } = await client.fetchFile(t.fileurl);
+        res.set({
+          "Content-Type": contentType ?? "application/octet-stream",
+          "Content-Disposition": attachment(t.filename),
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+        });
+        if (html !== undefined || !file.body) {
+          res.send(html ?? "");
+          return;
+        }
+        await pipeline(Readable.fromWeb(file.body as WebReadableStream), res);
+      } catch (err) {
+        if (res.headersSent) res.destroy();
+        else res.status(502).type("text").send(describeError(err));
+      }
+    },
+  );
 
   app.get("/", (_req, res) => {
     res.type("html").send(homePage(mcpUrl.href));

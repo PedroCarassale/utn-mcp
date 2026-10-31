@@ -24,6 +24,7 @@ Las fechas se muestran en hora de Argentina.`;
 export const REMOTE_INSTRUCTIONS = `Servidor MCP del campus virtual (Moodle) de la UTN Facultad Regional La Plata, versión pública de solo lectura.
 Actúa con la cuenta del usuario que conectó el servidor. Flujo típico: campus_whoami → campus_list_courses → campus_course_contents / campus_upcoming / campus_assignments → campus_get_file para leer apuntes.
 Para buscar dentro del contenido de los apuntes: campus_index_course una vez por materia y después campus_search_content. El índice es temporal: si la búsqueda no encuentra nada, volvé a indexar.
+Los archivos que lee este servidor quedan en el servidor, no en la computadora del usuario. Si el usuario quiere el archivo, usá el \`downloadUrl\` de campus_get_file: bajalo con curl al destino que pidió o pasale el link.
 Esta versión no puede entregar tareas, enviar mensajes ni publicar en foros.
 Si una tool responde que no hay sesión o que el token venció, pedile al usuario que desconecte y vuelva a conectar el servidor.
 Las fechas se muestran en hora de Argentina.`;
